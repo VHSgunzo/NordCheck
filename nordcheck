@@ -1,0 +1,49 @@
+#!/bin/bash
+cd "$( dirname "${BASH_SOURCE[0]}")"
+nord_port=1080
+check_ip="ident.me"
+num_ip=$(cat src/nord_ip|wc -l)
+for (( n=1; n <= $num_ip; n++ ))
+do
+nord_ip=$(sed "${n}!d" src/nord_ip)
+echo "##############################"
+echo "|  PING  |: $nord_ip..."
+ping_ip=$(ping -4 -q -c 1 -W 0.5 $nord_ip | grep -o "100%")
+if [ "$ping_ip" == "100%" ]; then
+echo "| BAD IP |: $nord_ip"
+echo "##############################"
+continue
+else
+echo "|GOOD IP |: $nord_ip"
+echo "##############################"
+break
+fi
+done
+num_vpn=$(cat src/vpn|wc -l)
+rm -f src/good_vpn src/bad_vpn
+touch src/bad_vpn
+touch src/good_vpn
+for (( m=1; m <= $num_vpn; m++ ))
+do
+logpas=$(sed "${m}!d" src/vpn)
+sed -i "5c\socks5 $nord_ip $nord_port $logpas" src/proxy.conf
+pub_ip=$(proxychains4 -f src/proxy.conf curl $check_ip)
+if ! [ -z $pub_ip ]
+then
+echo "###############################################################"
+echo "|GOOD|: ${logpas}"
+echo "###############################################################"
+echo $logpas | cat >> src/good_vpn
+else
+echo "###############################################################"
+echo "|BAD|: ${logpas}"
+echo "###############################################################"
+echo $logpas | cat >> src/bad_vpn
+fi
+done
+sed -i "5c\ " src/proxy.conf
+echo "#################"
+echo "| GOOD's | - $(cat src/good_vpn|wc -l)"
+echo "#################"
+echo "| BAD's  | - $(cat src/bad_vpn|wc -l)"
+echo "#################"
